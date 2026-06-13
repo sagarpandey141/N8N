@@ -243,9 +243,11 @@ def Resume_Reviewer(state):
       return state
 
 # Important Questions from book/PDF text
+# Chain-aware: book_text > Resume (from Resume Reviewer) > Ai_Response (prev node) > query
+# NOTE: does NOT overwrite Ai_Response so previous node output is preserved in results
 def Important_Questions(state):
       structured_llm = coding_llm_model.with_structured_output(messageStates)
-      content = state.book_text if state.book_text else state.query
+      content = state.book_text or state.Resume or state.Ai_Response or state.query
       response = structured_llm.invoke(
                [
                     {"role":"system","content":SYSTEM_PROMPT_Important_Questions},
@@ -253,14 +255,15 @@ def Important_Questions(state):
                 ]
             )
       print("Important_Questions respo",response)
-      state.questions=response.questions
-      state.Ai_Response=response.questions
+      state.questions = response.questions  # only write to own field
       return state
 
 # MCQ Generator
+# Chain-aware: book_text > Resume (from Resume Reviewer) > Ai_Response (prev node) > query
+# NOTE: does NOT overwrite Ai_Response so previous node output is preserved in results
 def MCQ_Generator(state):
       structured_llm = coding_llm_model.with_structured_output(messageStates)
-      content = state.book_text if state.book_text else state.query
+      content = state.book_text or state.Resume or state.Ai_Response or state.query
       response = structured_llm.invoke(
                [
                     {"role":"system","content":SYSTEM_PROMPT_MCQ_Generator},
@@ -268,22 +271,24 @@ def MCQ_Generator(state):
                 ]
             )
       print("MCQ_Generator respo",response)
-      state.mcqs=response.mcqs
-      state.Ai_Response=response.mcqs
+      state.mcqs = response.mcqs  # only write to own field
       return state
 
 # Study Planner
+# Chain-aware: Resume (raw resume for targeted plan) > Ai_Response (prev node review) > query
+# NOTE: does NOT overwrite Ai_Response so previous node output is preserved in results
 def Study_Planner(state):
       structured_llm = coding_llm_model.with_structured_output(messageStates)
+      # Prefer Resume text directly, then previous AI output, then user query
+      content = state.Resume or state.Ai_Response or state.query
       response = structured_llm.invoke(
                [
                     {"role":"system","content":SYSTEM_PROMPT_Study_Planner},
-                    {"role":"user","content":state.query}
+                    {"role":"user","content":content}
                 ]
             )
       print("Study_Planner respo",response)
-      state.study_plan=response.study_plan
-      state.Ai_Response=response.study_plan
+      state.study_plan = response.study_plan  # only write to own field
       return state
 
 # cover letter Gen
@@ -300,7 +305,9 @@ def Cover_Letter(state):
       return state
 
 
-# mail to user 
+# mail to user
+# Works with ANY preceding node — checks every dedicated output field in priority order:
+#   subject+body (Email_Suggest) > study_plan > mcqs > questions > Ai_Response (Resume_Reviewer / Cover_Letter)
 def mail_to_user(state):
     receiver_email = state.email
 
@@ -308,26 +315,55 @@ def mail_to_user(state):
         print("⚠️ [EMAIL SERVICE] SENDER_EMAIL or SENDER_PASSWORD is not configured in .env!")
         return state
 
-    # Create message
+    if not receiver_email:
+        print("⚠️ [EMAIL SERVICE] No receiver email in state — skipping send.")
+        return state
+
+    # ── Smart subject / body resolution ──────────────────────────────────────
+    # Priority 1: Email_Suggest (subject + body both set)
+    if state.subject and state.body:
+        email_subject = state.subject
+        email_body    = state.body
+
+    # Priority 2: Study Planner
+    elif state.study_plan:
+        email_subject = "Your Personalised Study Plan"
+        email_body    = state.study_plan
+
+    # Priority 3: MCQ Generator
+    elif state.mcqs:
+        email_subject = "MCQs Generated for You"
+        email_body    = state.mcqs
+
+    # Priority 4: Important Questions
+    elif state.questions:
+        email_subject = "Important Questions from Your Study Material"
+        email_body    = state.questions
+
+    # Priority 5: Generic AI response (Resume Reviewer, Cover Letter, etc.)
+    elif state.Ai_Response:
+        email_subject = "Your AI-Generated Result"
+        email_body    = state.Ai_Response
+
+    else:
+        print("⚠️ [EMAIL SERVICE] Nothing to send — all content fields are empty.")
+        return state
+    # ─────────────────────────────────────────────────────────────────────────
+
     message = MIMEMultipart()
-    message["From"] = SENDER_EMAIL
-    message["To"] = receiver_email
+    message["From"]    = SENDER_EMAIL
+    message["To"]      = receiver_email
     username = receiver_email.split('@')[0]
-    message["Subject"] = f"{state.subject} (on behalf of {username})"
+    message["Subject"] = f"{email_subject} (for {username})"
+    message.attach(MIMEText(email_body, "plain"))
 
-    body = state.body
-    message.attach(MIMEText(body, "plain"))
-
-    # Connect to Gmail SMTP
+    # Connect to Gmail SMTP and send
     server = smtplib.SMTP("smtp.gmail.com", 587)
     server.starttls()
-
-    # Login using env credentials
     server.login(SENDER_EMAIL, SENDER_PASSWORD)
-
-    # Send email
     server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
-    print("email sent")
+    server.quit()
+    print(f"📧 [EMAIL SERVICE] Mail sent successfully to {receiver_email}")
     return state
 
 #mapping 

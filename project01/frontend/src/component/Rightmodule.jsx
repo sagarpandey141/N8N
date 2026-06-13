@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { clearClickedNodeId, updateInput } from '../store/flowSlice';
+import { clearClickedNodeId, updateInput, setFlowResult } from '../store/flowSlice';
 import { toast, ToastContainer } from 'react-toastify';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
@@ -58,56 +58,18 @@ const PanelHeader = ({ icon, title, subtitle, onClear }) => (
   </div>
 );
 
-const RunButton = ({ onClick, loading, label = 'Run Query' }) => (
-  <button
-    onClick={onClick}
-    disabled={loading}
-    className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2
-      ${loading
-        ? 'bg-blue-300 text-white cursor-not-allowed'
-        : 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white shadow-sm'
-      }`}
-  >
-    {loading ? (
-      <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Processing…</>
-    ) : label}
-  </button>
+const RunHint = () => (
+  <div className="flex items-center justify-center gap-1.5 mt-1 py-2 rounded-xl bg-blue-50 border border-blue-100">
+    <span className="text-blue-400 text-xs">▶</span>
+    <p className="text-[11px] text-blue-400 font-medium">Hit <strong>Run Flow</strong> on the canvas to execute</p>
+  </div>
 );
 
 // ─── Email Suggest Panel ────────────────────────────────────────────────────
 
-const EmailSuggestPanel = ({ onClear, intMap }) => {
+const EmailSuggestPanel = ({ onClear }) => {
   const dispatch = useDispatch();
   const inputs = useSelector((state) => state.flow.inputs);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-
-  const handleRun = async () => {
-    if (!inputs.jd.trim()) { toast.warning('Please paste a Job Description first.'); return; }
-    if (!intMap || intMap.length < 2) { toast.warning('Please connect nodes on the canvas first to define the flow.'); return; }
-    setLoading(true); setResult(null);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          state: { 
-            query: inputs.jd, 
-            Resume: inputs.resumeText,
-            email: inputs.email 
-          }, 
-          int_map: intMap 
-        }),
-      });
-      const data = await res.json();
-      setResult(data);
-      toast.success('Email suggestion generated!');
-    } catch {
-      toast.error('Failed to connect to backend.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -124,36 +86,18 @@ const EmailSuggestPanel = ({ onClear, intMap }) => {
           className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition placeholder-gray-300 bg-gray-50"
         />
       </div>
-      <RunButton onClick={handleRun} loading={loading} />
-      {result && (
-        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3">
-          {result.subject && (
-            <div>
-              <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Subject</p>
-              <p className="text-sm text-gray-800 font-medium mt-0.5">{result.subject}</p>
-            </div>
-          )}
-          {result.body && (
-            <div>
-              <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Body</p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap mt-0.5 leading-relaxed">{result.body}</p>
-            </div>
-          )}
-        </div>
-      )}
+      <RunHint />
     </div>
   );
 };
 
 // ─── Resume Reviewer Panel ─────────────────────────────────────────────────
 
-const ResumeReviewerPanel = ({ onClear, intMap }) => {
+const ResumeReviewerPanel = ({ onClear }) => {
   const dispatch = useDispatch();
   const inputs = useSelector((state) => state.flow.inputs);
   const [fileName, setFileName] = useState('');
   const [extracting, setExtracting] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
   const [dragOver, setDragOver] = useState(false);
 
   const extractPDF = useCallback(async (file) => {
@@ -186,33 +130,6 @@ const ResumeReviewerPanel = ({ onClear, intMap }) => {
   const onDrop = e => {
     e.preventDefault(); setDragOver(false);
     if (e.dataTransfer.files[0]) extractPDF(e.dataTransfer.files[0]);
-  };
-
-  const handleRun = async () => {
-    if (!inputs.resumeText.trim()) { toast.warning('Please upload your resume PDF first.'); return; }
-    if (!intMap || intMap.length < 2) { toast.warning('Please connect nodes on the canvas first to define the flow.'); return; }
-    setLoading(true); setResult(null);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          state: { 
-            query: inputs.jd, 
-            Resume: inputs.resumeText,
-            email: inputs.email 
-          }, 
-          int_map: intMap 
-        }),
-      });
-      const data = await res.json();
-      setResult(data);
-      toast.success('Resume reviewed!');
-    } catch {
-      toast.error('Failed to connect to backend.');
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
@@ -256,52 +173,16 @@ const ResumeReviewerPanel = ({ onClear, intMap }) => {
         </details>
       )}
 
-      <RunButton onClick={handleRun} loading={loading} label="Analyse Resume" />
-
-      {result?.Ai_Response && (
-        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
-          <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mb-1">AI Feedback</p>
-          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{result.Ai_Response}</p>
-        </div>
-      )}
+      <RunHint />
     </div>
   );
 };
 
 // ─── Cover Letter Panel ────────────────────────────────────────────────────
 
-const CoverLetterPanel = ({ onClear, intMap }) => {
+const CoverLetterPanel = ({ onClear }) => {
   const dispatch = useDispatch();
   const inputs = useSelector((state) => state.flow.inputs);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-
-  const handleRun = async () => {
-    if (!inputs.jd.trim()) { toast.warning('Please paste a Job Description first.'); return; }
-    if (!intMap || intMap.length < 2) { toast.warning('Please connect nodes on the canvas first to define the flow.'); return; }
-    setLoading(true); setResult(null);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          state: { 
-            query: inputs.jd, 
-            Resume: inputs.resumeText,
-            email: inputs.email 
-          }, 
-          int_map: intMap 
-        }),
-      });
-      const data = await res.json();
-      setResult(data);
-      toast.success('Cover letter generated!');
-    } catch {
-      toast.error('Failed to connect to backend.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -318,45 +199,19 @@ const CoverLetterPanel = ({ onClear, intMap }) => {
           className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition placeholder-gray-300 bg-gray-50"
         />
       </div>
-      <RunButton onClick={handleRun} loading={loading} label="Generate Cover Letter" />
-      {result?.Ai_Response && (
-        <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
-          <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1">Cover Letter</p>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{result.Ai_Response}</p>
-        </div>
-      )}
+      <RunHint />
     </div>
   );
 };
 
 // ─── Important Questions Panel ──────────────────────────────────────────────
 
-const ImportantQuestionsPanel = ({ onClear, intMap }) => {
+const ImportantQuestionsPanel = ({ onClear }) => {
   const dispatch = useDispatch();
   const inputs = useSelector((state) => state.flow.inputs);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
   const { fileName, extracting, dragOver, setDragOver, extractPDF } = usePDFExtractor('bookText', dispatch);
 
   const onDrop = e => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files[0]) extractPDF(e.dataTransfer.files[0]); };
-
-  const handleRun = async () => {
-    const content = inputs.bookText || inputs.jd;
-    if (!content?.trim()) { toast.warning('Please upload a PDF book or paste some text first.'); return; }
-    if (!intMap || intMap.length < 2) { toast.warning('Connect nodes on the canvas first.'); return; }
-    setLoading(true); setResult(null);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: { query: inputs.jd || 'generate questions', book_text: inputs.bookText, email: inputs.email }, int_map: intMap }),
-      });
-      const data = await res.json();
-      setResult(data);
-      toast.success('Important questions generated!');
-    } catch { toast.error('Failed to connect to backend.'); }
-    finally { setLoading(false); }
-  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -403,46 +258,19 @@ const ImportantQuestionsPanel = ({ onClear, intMap }) => {
         />
       </div>
 
-      <RunButton onClick={handleRun} loading={loading} label="Generate Questions" />
-
-      {result?.Ai_Response && (
-        <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
-          <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-2">Important Questions</p>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{result.Ai_Response}</p>
-        </div>
-      )}
+      <RunHint />
     </div>
   );
 };
 
 // ─── MCQ Generator Panel ─────────────────────────────────────────────────────
 
-const MCQGeneratorPanel = ({ onClear, intMap }) => {
+const MCQGeneratorPanel = ({ onClear }) => {
   const dispatch = useDispatch();
   const inputs = useSelector((state) => state.flow.inputs);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
   const { fileName, extracting, dragOver, setDragOver, extractPDF } = usePDFExtractor('bookText', dispatch);
 
   const onDrop = e => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files[0]) extractPDF(e.dataTransfer.files[0]); };
-
-  const handleRun = async () => {
-    const content = inputs.bookText || inputs.jd;
-    if (!content?.trim()) { toast.warning('Please enter a topic or upload a PDF first.'); return; }
-    if (!intMap || intMap.length < 2) { toast.warning('Connect nodes on the canvas first.'); return; }
-    setLoading(true); setResult(null);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: { query: inputs.jd || 'generate mcqs', book_text: inputs.bookText, email: inputs.email }, int_map: intMap }),
-      });
-      const data = await res.json();
-      setResult(data);
-      toast.success('MCQs generated!');
-    } catch { toast.error('Failed to connect to backend.'); }
-    finally { setLoading(false); }
-  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -488,42 +316,16 @@ const MCQGeneratorPanel = ({ onClear, intMap }) => {
         />
       </div>
 
-      <RunButton onClick={handleRun} loading={loading} label="Generate MCQs" />
-
-      {result?.Ai_Response && (
-        <div className="bg-green-50 border border-green-100 rounded-xl p-4">
-          <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider mb-2">MCQs</p>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed font-mono text-[11px]">{result.Ai_Response}</p>
-        </div>
-      )}
+      <RunHint />
     </div>
   );
 };
 
 // ─── Study Planner Panel ─────────────────────────────────────────────────────
 
-const StudyPlannerPanel = ({ onClear, intMap }) => {
+const StudyPlannerPanel = ({ onClear }) => {
   const dispatch = useDispatch();
   const inputs = useSelector((state) => state.flow.inputs);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-
-  const handleRun = async () => {
-    if (!inputs.jd.trim()) { toast.warning('Please describe the topic or syllabus first.'); return; }
-    if (!intMap || intMap.length < 2) { toast.warning('Connect nodes on the canvas first.'); return; }
-    setLoading(true); setResult(null);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: { query: inputs.jd, email: inputs.email }, int_map: intMap }),
-      });
-      const data = await res.json();
-      setResult(data);
-      toast.success('Study plan created!');
-    } catch { toast.error('Failed to connect to backend.'); }
-    finally { setLoading(false); }
-  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -538,53 +340,20 @@ const StudyPlannerPanel = ({ onClear, intMap }) => {
           className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition placeholder-gray-300 bg-gray-50"
         />
       </div>
-      <RunButton onClick={handleRun} loading={loading} label="Create Study Plan" />
-      {result?.Ai_Response && (
-        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
-          <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-2">Your Study Plan</p>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{result.Ai_Response}</p>
-        </div>
-      )}
+      <RunHint />
     </div>
   );
 };
 
 // ─── Mail To User Panel ─────────────────────────────────────────────────────
 
-const MailToUserPanel = ({ onClear, intMap }) => {
+const MailToUserPanel = ({ onClear }) => {
   const dispatch = useDispatch();
   const inputs = useSelector((state) => state.flow.inputs);
-  const [loading, setLoading] = useState(false);
-
-  const handleRun = async () => {
-    if (!inputs.email.trim()) { toast.warning('Please enter a recipient email.'); return; }
-    if (!intMap || intMap.length < 2) { toast.warning('Please connect nodes on the canvas first to define the flow.'); return; }
-    setLoading(true);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          state: { 
-            query: inputs.jd, 
-            Resume: inputs.resumeText,
-            email: inputs.email 
-          }, 
-          int_map: intMap 
-        }),
-      });
-      if (res.ok) toast.success('Email sent successfully!');
-      else toast.error('Failed to send email.');
-    } catch {
-      toast.error('Failed to connect to backend.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="flex flex-col gap-4">
-      <PanelHeader icon="📧" title="Mail to User" subtitle="Send the generated email to a recipient" onClear={onClear} />
+      <PanelHeader icon="📧" title="Mail to User" subtitle="Enter the recipient — email is sent when the flow runs" onClear={onClear} />
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
           Recipient Email
@@ -597,7 +366,7 @@ const MailToUserPanel = ({ onClear, intMap }) => {
           className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition placeholder-gray-300 bg-gray-50"
         />
       </div>
-      <RunButton onClick={handleRun} loading={loading} label="Send Email" />
+      <RunHint />
     </div>
   );
 };
@@ -612,7 +381,7 @@ const EmptyState = () => (
     <div>
       <h3 className="font-semibold text-gray-700 text-sm">No node selected</h3>
       <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-        Click a node in the left panel<br />to configure it here.
+        Click a node on the canvas<br />to configure its inputs here.
       </p>
     </div>
 
@@ -661,7 +430,7 @@ const EmptyState = () => (
       <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1.5 px-1">⚡ Actions</p>
       <div className="flex flex-col gap-1.5">
         {[
-          { icon: '📧', label: 'Email Send', desc: 'Send the generated email' },
+          { icon: '📧', label: 'Email Send', desc: 'Send the generated result via email' },
         ].map(item => (
           <div key={item.label} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-rose-50 border border-rose-100">
             <span className="text-base">{item.icon}</span>
@@ -676,24 +445,95 @@ const EmptyState = () => (
   </div>
 );
 
+// ─── Flow Result Panel (shown in right panel when no action node) ──────────────
+
+const FlowResultPanel = ({ result, onClear }) => {
+  if (!result) return null;
+
+  // Extract all non-null, non-empty string content fields in display priority order
+  const FIELD_META = [
+    { key: 'subject',     label: '📬 Email Subject', color: 'text-blue-500'   },
+    { key: 'body',        label: '📝 Email Body',    color: 'text-blue-400'   },
+    { key: 'study_plan', label: '📅 Study Plan',   color: 'text-indigo-500' },
+    { key: 'Ai_Response',label: '🤖 AI Response',  color: 'text-emerald-600'},
+    { key: 'questions',  label: '❓ Questions',     color: 'text-amber-600'  },
+    { key: 'mcqs',       label: '📝 MCQs',          color: 'text-green-600'  },
+  ];
+
+  // Build sections from whichever fields have actual content
+  const sections = FIELD_META
+    .filter(({ key }) => result[key] && typeof result[key] === 'string' && result[key].trim().length > 0)
+    .map(({ key, label, color }) => (
+      <div key={key}>
+        <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${color}`}>{label}</p>
+        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{result[key]}</p>
+      </div>
+    ));
+
+  // Catch-all: if no known field matched, find any AI-generated string — skip raw input fields
+  const INPUT_FIELDS = new Set(['query', 'Resume', 'email', 'book_text', 'accuracy']);
+  if (sections.length === 0) {
+    const anyContent = Object.entries(result).find(
+      ([k, v]) => !INPUT_FIELDS.has(k) && v && typeof v === 'string' && v.trim().length > 0
+    );
+    if (anyContent) {
+      sections.push(
+        <div key="raw">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Result</p>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{anyContent[1]}</p>
+        </div>
+      );
+    } else {
+      return (
+        <div className="mt-2 px-4 py-3 bg-blue-50 border border-blue-100 rounded-2xl text-xs text-blue-500">
+          ✅ Flow ran successfully. No text output was returned by the AI.
+        </div>
+      );
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 overflow-hidden mb-4">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-100 border-b border-emerald-200">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Flow Result</span>
+        </div>
+        <button
+          onClick={onClear}
+          className="text-emerald-400 hover:text-emerald-600 text-base leading-none transition-colors"
+          title="Clear result"
+        >×</button>
+      </div>
+      {/* Content */}
+      <div className="px-4 py-3 space-y-4 max-h-96 overflow-y-auto custom-scrollbar">
+        {sections}
+      </div>
+    </div>
+  );
+};
+
 // ─── Main Rightmodule ──────────────────────────────────────────────────────
 
 const Rightmodule = () => {
   const dispatch = useDispatch();
   const selectedNodeLabel = useSelector((state) => state.flow.selectedNodeLabel);
-  const intMap = useSelector((state) => state.flow.intMap);  // ← dynamic from canvas edges
+  const intMap = useSelector((state) => state.flow.intMap);
+  const flowResult = useSelector((state) => state.flow.flowResult); // ← result from canvas run
 
   const handleClear = () => dispatch(clearClickedNodeId());
+  const handleClearResult = () => dispatch(setFlowResult(null));
 
   const renderPanel = () => {
     switch (selectedNodeLabel) {
-      case 'Email_Suggest':         return <EmailSuggestPanel onClear={handleClear} intMap={intMap} />;
-      case 'Resume_Reviewer':       return <ResumeReviewerPanel onClear={handleClear} intMap={intMap} />;
-      case 'Cover_Letter':          return <CoverLetterPanel onClear={handleClear} intMap={intMap} />;
-      case 'mail_to_user':          return <MailToUserPanel onClear={handleClear} intMap={intMap} />;
-      case 'Important_Questions':   return <ImportantQuestionsPanel onClear={handleClear} intMap={intMap} />;
-      case 'MCQ_Generator':         return <MCQGeneratorPanel onClear={handleClear} intMap={intMap} />;
-      case 'Study_Planner':         return <StudyPlannerPanel onClear={handleClear} intMap={intMap} />;
+      case 'Email_Suggest':         return <EmailSuggestPanel onClear={handleClear} />;
+      case 'Resume_Reviewer':       return <ResumeReviewerPanel onClear={handleClear} />;
+      case 'Cover_Letter':          return <CoverLetterPanel onClear={handleClear} />;
+      case 'mail_to_user':          return <MailToUserPanel onClear={handleClear} />;
+      case 'Important_Questions':   return <ImportantQuestionsPanel onClear={handleClear} />;
+      case 'MCQ_Generator':         return <MCQGeneratorPanel onClear={handleClear} />;
+      case 'Study_Planner':         return <StudyPlannerPanel onClear={handleClear} />;
       default:                      return <EmptyState />;
     }
   };
@@ -704,9 +544,12 @@ const Rightmodule = () => {
       <div className="px-4 py-3.5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${selectedNodeLabel ? 'bg-green-400 animate-pulse' : 'bg-gray-300'}`} />
+            <span className={`w-2 h-2 rounded-full ${
+              flowResult ? 'bg-emerald-400 animate-pulse' :
+              selectedNodeLabel ? 'bg-green-400 animate-pulse' : 'bg-gray-300'
+            }`} />
             <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-              {selectedNodeLabel ? selectedNodeLabel.replaceAll('_', ' ') : 'Node Config'}
+              {flowResult ? '✅ Result Ready' : selectedNodeLabel ? selectedNodeLabel.replaceAll('_', ' ') : 'Node Config'}
             </h2>
           </div>
           {/* Live int_map flow indicator */}
@@ -726,8 +569,9 @@ const Rightmodule = () => {
         )}
       </div>
 
-      {/* Panel content */}
+      {/* Panel content — result card shown FIRST so it’s always visible */}
       <div className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar">
+        {flowResult && <FlowResultPanel result={flowResult} onClear={handleClearResult} />}
         {renderPanel()}
       </div>
 

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { ReactFlow, applyNodeChanges, applyEdgeChanges, addEdge, Handle, Position } from '@xyflow/react';
 import { useDispatch, useSelector } from 'react-redux';
-import { setClickedNodeId, clearClickedNodeId, setSelectedNodeLabel, setIntMap } from '../store/flowSlice';
+import { setClickedNodeId, clearClickedNodeId, setSelectedNodeLabel, setIntMap, setFlowResult } from '../store/flowSlice';
 import { FaBrain, FaICursor, FaPlay, FaStop } from "react-icons/fa";
 import { CiVoicemail } from "react-icons/ci";
 import '@xyflow/react/dist/style.css';
@@ -74,7 +74,8 @@ const Centerconsole = () => {
   const dispatch = useDispatch();
   const clickedNodeId = useSelector((state) => state.flow.clickedNodeId);
   const addedNodeIds = useSelector((state) => state.flow.addedNodeIds);
-  const userEmail = useSelector((state) => state.flow.userEmail); // ← Hook auth state for sync
+  const userEmail = useSelector((state) => state.flow.userEmail);
+  const inputs = useSelector((state) => state.flow.inputs); // All user inputs for flow execution
 
   const [nodes, setNodes] = useState([
     { id: '3', position: { x: 150, y: 50 }, data: { label: 'START' }, type: 'customNode' },
@@ -84,6 +85,9 @@ const Centerconsole = () => {
   const [finalmapping, setfinalMapping] = useState([]);
   const [selectedNode, setSelectedNode] = useState(null);
   const [registry, setRegistry] = useState({});
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [showResult, setShowResult] = useState(false);
 
   // Fetch node definitions/labels registry from backend
   useEffect(() => {
@@ -179,27 +183,25 @@ const Centerconsole = () => {
   );
 
   // ── Connection Rules ─────────────────────────────────────────────────────────
-  // mail_to_user can ONLY receive a connection from Email_Suggest
-  const ALLOWED_SOURCES = {
-    '2': ['1'], // mail_to_user (id=2) only accepts Email_Suggest (id=1)
+  // mail_to_user (id=2) works with ANY AI node output.
+  // Only block it being directly connected from START (id=3) or END (id=4).
+  const BLOCKED_SOURCES = {
+    '2': ['3', '4'], // mail_to_user cannot receive from START or END directly
   };
 
   const onConnect = useCallback(
     (params) => {
       const { source, target } = params;
 
-      // Check if this target node has restricted allowed sources
-      if (ALLOWED_SOURCES[target]) {
-        if (!ALLOWED_SOURCES[target].includes(source)) {
-          // Find the label of the source node for a helpful error message
-          const sourceNode = nodes.find(n => n.id === source);
-          const sourceName = sourceNode?.data?.label?.replaceAll('_', ' ') || 'that node';
-          toast.error(
-            `❌ "Email Send" can only be connected from "Email Suggest". "${sourceName}" is not compatible.`,
-            { position: 'top-center', autoClose: 4000 }
-          );
-          return; // Block the connection
-        }
+      // Check if this (source -> target) connection is explicitly blocked
+      if (BLOCKED_SOURCES[target]?.includes(source)) {
+        const sourceNode = nodes.find(n => n.id === source);
+        const sourceName = sourceNode?.data?.label?.replaceAll('_', ' ') || 'that node';
+        toast.error(
+          `❌ "Email Send" cannot be connected directly from "${sourceName}". Connect an AI node first (e.g. Email Suggest, Study Planner, Resume Reviewer).`,
+          { position: 'top-center', autoClose: 4500 }
+        );
+        return; // Block the connection
       }
 
       setEdges((edgesSnapshot) => addEdge(params, edgesSnapshot));
@@ -230,6 +232,50 @@ const Centerconsole = () => {
     processchanges(edges);
   }, [edges, processchanges]);
 
+  // ── Run the entire flow ───────────────────────────────────────────────────
+  const ACTION_NODE_ID = '2'; // mail_to_user
+  const handleRunFlow = async () => {
+    if (!finalmapping || finalmapping.length < 2) {
+      toast.error('Connect nodes on the canvas first to define the flow order.');
+      return;
+    }
+    const hasActionNode = finalmapping.includes(ACTION_NODE_ID);
+    setRunning(true);
+    setResult(null);
+    setShowResult(false);
+    dispatch(setFlowResult(null)); // clear previous result
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/process`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          state: {
+            query:     inputs.jd        || '',
+            Resume:    inputs.resumeText || '',
+            email:     inputs.email      || '',
+            book_text: inputs.bookText   || '',
+          },
+          int_map: finalmapping.map(id => parseInt(id)),
+        }),
+      });
+      const data = await res.json();
+      console.log('[RunFlow] result from backend:', data); // debug
+      setResult(data);
+      if (hasActionNode) {
+        // Action node present → show bottom drawer on canvas
+        setShowResult(true);
+        toast.success('✅ Flow executed — check your email!');
+      } else {
+        // No action node → push result to Redux so right panel displays it
+        dispatch(setFlowResult(data));
+        toast.success('✅ Flow executed! See results in the right panel.');
+      }
+    } catch {
+      toast.error('❌ Failed to connect to backend.');
+    } finally {
+      setRunning(false);
+    }
+  };
 
   // Derive highlight styles for nodes dynamically
   const nodesWithHighlight = useMemo(() => {
@@ -254,6 +300,34 @@ const Centerconsole = () => {
         backgroundSize: "40px 40px",
       }}
     >
+      {/* ── Top toolbar with Run Flow button ── */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3
+        bg-white/90 backdrop-blur-sm border border-gray-200 rounded-2xl px-4 py-2 shadow-md">
+        <span className="text-[11px] text-gray-400 font-mono hidden sm:block">
+          {finalmapping.length > 0
+            ? `Flow: [${finalmapping.join(' → ')}]`
+            : 'No flow — connect nodes'}
+        </span>
+        <button
+          id="run-flow-btn"
+          onClick={handleRunFlow}
+          disabled={running}
+          className={`flex items-center gap-2 px-4 py-1.5 rounded-xl font-semibold text-sm
+            transition-all duration-200
+            ${ running
+              ? 'bg-blue-300 text-white cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-700 active:scale-95 text-white shadow-sm'
+            }`}
+        >
+          {running ? (
+            <><span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />Running…</>
+          ) : (
+            <><FaPlay className="w-3 h-3" />Run Flow</>
+          )}
+        </button>
+      </div>
+
+      {/* ── React Flow canvas ── */}
       <div className="w-full h-full relative">
         <ReactFlow
           nodes={nodesWithHighlight}
@@ -266,8 +340,65 @@ const Centerconsole = () => {
           fitView
           style={{ background: 'transparent' }}
         />
-
       </div>
+
+      {/* ── Result Drawer (slides up from bottom) ── */}
+      {showResult && result && (
+        <div className="absolute bottom-0 left-0 right-0 z-20 bg-white border-t-2 border-blue-100
+          shadow-2xl rounded-t-2xl animate-slide-up">
+          {/* Drawer header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">Flow Result</span>
+            </div>
+            <button
+              onClick={() => setShowResult(false)}
+              className="text-gray-400 hover:text-gray-600 text-xl leading-none transition-colors"
+              title="Close result"
+            >×</button>
+          </div>
+
+          {/* Drawer body */}
+          <div className="px-5 py-4 max-h-64 overflow-y-auto space-y-4 custom-scrollbar">
+            {/* Email Suggest output */}
+            {result.subject && (
+              <div>
+                <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1">📬 Subject</p>
+                <p className="text-sm text-gray-800 font-medium">{result.subject}</p>
+              </div>
+            )}
+            {result.body && (
+              <div>
+                <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1">📝 Email Body</p>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{result.body}</p>
+              </div>
+            )}
+
+            {/* Study Planner output */}
+            {result.study_plan && (
+              <div>
+                <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">📅 Study Plan</p>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{result.study_plan}</p>
+              </div>
+            )}
+
+            {/* Generic AI response (Resume Reviewer, Cover Letter, Questions, MCQs) */}
+            {result.Ai_Response && !result.study_plan && (
+              <div>
+                <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mb-1">🤖 AI Response</p>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{result.Ai_Response}</p>
+              </div>
+            )}
+
+            {/* mail_to_user — no visible output, just show success */}
+            {!result.subject && !result.body && !result.study_plan && !result.Ai_Response && (
+              <p className="text-sm text-gray-500 italic text-center py-2">Flow executed. Check your email if mail_to_user was in the flow.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       <ToastContainer />
     </div>
   );

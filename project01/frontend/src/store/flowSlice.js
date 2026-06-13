@@ -12,6 +12,7 @@ const initialState = {
     bookText: '',
   },
   userEmail: null, // The currently logged-in user email
+  flowResult: null, // Last result from Run Flow (null = no run yet)
 };
 
 const flowSlice = createSlice({
@@ -67,6 +68,9 @@ const flowSlice = createSlice({
     setUserEmail: (state, action) => {
       state.userEmail = action.payload;
     },
+    setFlowResult: (state, action) => {
+      state.flowResult = action.payload; // null to clear, object to set
+    },
     signOut: (state) => {
       state.userEmail = null;
       state.addedNodeIds = ['3', '4'];
@@ -94,6 +98,7 @@ export const {
   setIntMap,
   updateInput,
   setUserEmail,
+  setFlowResult,
   signOut,
 } = flowSlice.actions;
 
