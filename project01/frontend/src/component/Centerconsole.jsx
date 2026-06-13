@@ -178,9 +178,33 @@ const Centerconsole = () => {
     []
   );
 
+  // ── Connection Rules ─────────────────────────────────────────────────────────
+  // mail_to_user can ONLY receive a connection from Email_Suggest
+  const ALLOWED_SOURCES = {
+    '2': ['1'], // mail_to_user (id=2) only accepts Email_Suggest (id=1)
+  };
+
   const onConnect = useCallback(
-    (params) => setEdges((edgesSnapshot) => addEdge(params, edgesSnapshot)),
-    []
+    (params) => {
+      const { source, target } = params;
+
+      // Check if this target node has restricted allowed sources
+      if (ALLOWED_SOURCES[target]) {
+        if (!ALLOWED_SOURCES[target].includes(source)) {
+          // Find the label of the source node for a helpful error message
+          const sourceNode = nodes.find(n => n.id === source);
+          const sourceName = sourceNode?.data?.label?.replaceAll('_', ' ') || 'that node';
+          toast.error(
+            `❌ "Email Send" can only be connected from "Email Suggest". "${sourceName}" is not compatible.`,
+            { position: 'top-center', autoClose: 4000 }
+          );
+          return; // Block the connection
+        }
+      }
+
+      setEdges((edgesSnapshot) => addEdge(params, edgesSnapshot));
+    },
+    [nodes]
   );
 
   const onNodeclick = useCallback((event, node) => {

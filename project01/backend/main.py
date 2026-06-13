@@ -403,11 +403,7 @@ async def send_otp(request: EmailRequest):
     
     # Try sending the OTP email
     email_sent = send_email_otp(email, otp)
-    
-    # Console output for testing retrieval (fallback)
-    print("\n" + "="*50)
-    print(f"🔑 [OTP SERVICE] Code for {email} is: {otp} (Email Sent: {email_sent})")
-    print("="*50 + "\n")
+   
     
     return {
         "message": "OTP sent successfully",
