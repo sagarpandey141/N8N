@@ -73,7 +73,7 @@ const EmailSuggestPanel = ({ onClear }) => {
 
   return (
     <div className="flex flex-col gap-4">
-      <PanelHeader icon="🧠" title="Email Suggest" subtitle="Paste a JD to generate a referral email" onClear={onClear} />
+      <PanelHeader icon="🧠" title="Email Suggest" subtitle="test email send" onClear={onClear} />
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
           Job Description
@@ -390,7 +390,7 @@ const EmptyState = () => (
       <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1.5 px-1">🤖 AI Nodes</p>
       <div className="flex flex-col gap-1.5">
         {[
-          { icon: '🧠', label: 'Email Suggester',       desc: 'JD → referral email' },
+          { icon: '🧠', label: 'Email Suggester',       desc: 'test email send' },
           { icon: '📄', label: 'Resume Reviewer',        desc: 'PDF → AI feedback' },
           { icon: '✍️', label: 'Cover Letter Writer',    desc: 'JD → cover letter' },
         ].map(item => (
@@ -575,7 +575,7 @@ const Rightmodule = () => {
         {renderPanel()}
       </div>
 
-      <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar newestOnTop />
+      <ToastContainer position="bottom-right" autoClose={2000} hideProgressBar newestOnTop />
     </div>
   );
 };

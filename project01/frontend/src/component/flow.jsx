@@ -154,6 +154,7 @@ export default function Flow() {
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeclick}
         onConnect={onConnect}
+        colorMode="dark"
         fitView
       />
       {selectedNode === "Email_Suggest" && (
@@ -250,7 +251,7 @@ export default function Flow() {
           </button>
         </div>
       )}
-      <ToastContainer />
+      <ToastContainer autoClose={2000} />
     </div>
   );
 }

@@ -12,7 +12,7 @@ function App() {
   const [count, setCount] = useState(0)
 
   return (
-    <div className='w-full h-screen overflow-hidden '>
+    <div className='w-full h-screen overflow-hidden bg-gray-900 text-white'>
          <Navbar/>
          <Centralize/>
     </div>

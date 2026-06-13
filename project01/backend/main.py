@@ -178,7 +178,9 @@ Flowbuilder AI Team"""
 
 #SYSTEM PROMPT
 SYSTEM_PROMPT_JD_CODING="""
-   You are an ai helpfull assitant you will be given JD (job description) you have to return best email ( subject + body) for sending for refferal request
+   You are an ai helpfull assitant you will be given JD (job description) you have to return best email ( subject + body) for sending for refferal request. 
+   IMPORTANT: Do NOT use the phrase 'on behalf of' anywhere in the template. 
+   Also, you MUST include 'test :' somewhere in the template.
 """
 
 SYSTEM_PROMPT_Resume_Reviewer="""

@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { ReactFlow, applyNodeChanges, applyEdgeChanges, addEdge, Handle, Position } from '@xyflow/react';
 import { useDispatch, useSelector } from 'react-redux';
-import { setClickedNodeId, clearClickedNodeId, setSelectedNodeLabel, setIntMap, setFlowResult } from '../store/flowSlice';
-import { FaBrain, FaICursor, FaPlay, FaStop } from "react-icons/fa";
+import { setClickedNodeId, clearClickedNodeId, setSelectedNodeLabel, setIntMap, setFlowResult, removeNodeId } from '../store/flowSlice';
+import { FaBrain, FaICursor, FaPlay, FaStop, FaTimes } from "react-icons/fa";
 import { CiVoicemail } from "react-icons/ci";
 import '@xyflow/react/dist/style.css';
 import { ToastContainer, toast } from 'react-toastify';
@@ -21,11 +21,17 @@ const iconMap = {
 };
 
 // Custom React Flow node component rendering Name, Icon and Active state indicator
-const CustomNode = ({ data, selected }) => {
+const CustomNode = ({ id, data, selected }) => {
+  const dispatch = useDispatch();
   const label = data.label || '';
   const icon = iconMap[label] || <FaBrain className="w-5 h-5" />;
   const isSelected = selected;
   const displayName = label === 'START' ? 'Start' : label === 'END' ? 'End' : label.replaceAll('_', ' ');
+
+  const handleRemove = (e) => {
+    e.stopPropagation(); // prevent node selection
+    dispatch(removeNodeId(id));
+  };
 
   return (
     <div className={`px-4 py-3 rounded-xl border-2 transition-all duration-200 flex items-center gap-3 min-w-[200px] ${isSelected
@@ -54,6 +60,17 @@ const CustomNode = ({ data, selected }) => {
           </span>
         </div>
       </div>
+      
+      {/* Cut / Remove Icon (not for START/END) */}
+      {label !== 'START' && label !== 'END' && (
+        <button
+          onClick={handleRemove}
+          className="ml-auto text-gray-400 hover:text-red-500 hover:bg-red-50 p-1 rounded-md transition-colors"
+          title="Remove Node"
+        >
+          <FaTimes className="w-3 h-3" />
+        </button>
+      )}
       {label !== 'END' && (
         <Handle
           type="source"
@@ -183,23 +200,17 @@ const Centerconsole = () => {
   );
 
   // ── Connection Rules ─────────────────────────────────────────────────────────
-  // mail_to_user (id=2) works with ANY AI node output.
-  // Only block it being directly connected from START (id=3) or END (id=4).
-  const BLOCKED_SOURCES = {
-    '2': ['3', '4'], // mail_to_user cannot receive from START or END directly
-  };
-
   const onConnect = useCallback(
     (params) => {
       const { source, target } = params;
 
-      // Check if this (source -> target) connection is explicitly blocked
-      if (BLOCKED_SOURCES[target]?.includes(source)) {
+      // "Email Send" (id=2) can ONLY receive from "Email Suggest" (id=1) for now
+      if (target === '2' && source !== '1') {
         const sourceNode = nodes.find(n => n.id === source);
         const sourceName = sourceNode?.data?.label?.replaceAll('_', ' ') || 'that node';
         toast.error(
-          `❌ "Email Send" cannot be connected directly from "${sourceName}". Connect an AI node first (e.g. Email Suggest, Study Planner, Resume Reviewer).`,
-          { position: 'top-center', autoClose: 4500 }
+          `❌ "Email Send" can only be used with "Email Suggest" for now. Cannot connect from "${sourceName}".`,
+          { position: 'top-center' }
         );
         return; // Block the connection
       }
@@ -290,12 +301,12 @@ const Centerconsole = () => {
 
   return (
     <div
-      className="h-[calc(100vh-60px)] w-[70%] relative flex flex-col border-r border-gray-200"
+      className="h-[calc(100vh-60px)] w-[70%] relative flex flex-col border-r border-slate-800"
       style={{
-        backgroundColor: "#f9fafb",
+        backgroundColor: "#0f172a",
         backgroundImage: `
-          linear-gradient(#e5e7eb 1px, transparent 1px),
-          linear-gradient(90deg, #e5e7eb 1px, transparent 1px)
+          linear-gradient(#1e293b 1px, transparent 1px),
+          linear-gradient(90deg, #1e293b 1px, transparent 1px)
         `,
         backgroundSize: "40px 40px",
       }}
@@ -399,7 +410,7 @@ const Centerconsole = () => {
         </div>
       )}
 
-      <ToastContainer />
+      <ToastContainer autoClose={2000} />
     </div>
   );
 };
