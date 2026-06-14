@@ -6,29 +6,29 @@ import { setClickedNodeId, setSelectedNodeLabel, addNodeId, removeNodeId, clearC
 // Maps each node label to its display info and category
 const NODE_META = {
   // AI Nodes
-  Email_Suggest:           { icon: '🧠', label: 'Email Suggester',         desc: 'Generate referral email from JD',       category: 'ai',     color: 'blue'   },
-  Resume_Reviewer:         { icon: '📄', label: 'Resume Reviewer',          desc: 'Get AI feedback on your resume',        category: 'ai',     color: 'teal'   },
-  Cover_Letter:            { icon: '✍️', label: 'Cover Letter Writer',      desc: 'Auto-generate a tailored cover letter', category: 'ai',     color: 'purple' },
-  Important_Questions:     { icon: '❓', label: 'Important Q Suggester',    desc: 'Upload PDF book → key questions',       category: 'student', color: 'amber'  },
-  MCQ_Generator:           { icon: '📝', label: 'MCQ Generator',            desc: 'Create multiple-choice questions',      category: 'student', color: 'green'  },
-  Study_Planner:           { icon: '📅', label: 'Study Planner',            desc: 'Build a personalised study plan',       category: 'student', color: 'indigo' },
+  Email_Suggest: { icon: '🧠', label: 'Email Suggester', desc: 'Generate referral email from JD', category: 'ai', color: 'blue' },
+  Resume_Reviewer: { icon: '📄', label: 'Resume Reviewer', desc: 'Get AI feedback on your resume', category: 'ai', color: 'teal' },
+  Cover_Letter: { icon: '✍️', label: 'Cover Letter Writer', desc: 'Auto-generate a tailored cover letter', category: 'ai', color: 'purple' },
+  Important_Questions: { icon: '❓', label: 'Important Q Suggester', desc: 'Upload PDF book → key questions', category: 'student', color: 'amber' },
+  MCQ_Generator: { icon: '📝', label: 'MCQ Generator', desc: 'Create multiple-choice questions', category: 'student', color: 'green' },
+  Study_Planner: { icon: '📅', label: 'Study Planner', desc: 'Build a personalised study plan', category: 'student', color: 'indigo' },
   // Actions
-  mail_to_user:            { icon: '📧', label: 'Email Send',               desc: 'Send generated email to recipient',     category: 'action', color: 'rose'   },
+  mail_to_user: { icon: '📧', label: 'Email Send', desc: 'Send generated email to recipient', category: 'action', color: 'rose' },
 };
 
 const COLOR_MAP = {
-  blue:   { ring: 'bg-blue-100 text-blue-600',   sel: 'bg-blue-600 text-white',   badge: 'bg-blue-50 border-blue-200',   selBadge: 'border-blue-500 bg-blue-50 shadow-md'   },
-  teal:   { ring: 'bg-teal-100 text-teal-600',   sel: 'bg-teal-600 text-white',   badge: 'bg-teal-50 border-teal-200',   selBadge: 'border-teal-500 bg-teal-50 shadow-md'   },
+  blue: { ring: 'bg-blue-100 text-blue-600', sel: 'bg-blue-600 text-white', badge: 'bg-blue-50 border-blue-200', selBadge: 'border-blue-500 bg-blue-50 shadow-md' },
+  teal: { ring: 'bg-teal-100 text-teal-600', sel: 'bg-teal-600 text-white', badge: 'bg-teal-50 border-teal-200', selBadge: 'border-teal-500 bg-teal-50 shadow-md' },
   purple: { ring: 'bg-purple-100 text-purple-600', sel: 'bg-purple-600 text-white', badge: 'bg-purple-50 border-purple-200', selBadge: 'border-purple-500 bg-purple-50 shadow-md' },
-  amber:  { ring: 'bg-amber-100 text-amber-600', sel: 'bg-amber-600 text-white',  badge: 'bg-amber-50 border-amber-200', selBadge: 'border-amber-500 bg-amber-50 shadow-md'  },
-  green:  { ring: 'bg-green-100 text-green-600', sel: 'bg-green-600 text-white',  badge: 'bg-green-50 border-green-200', selBadge: 'border-green-500 bg-green-50 shadow-md'  },
+  amber: { ring: 'bg-amber-100 text-amber-600', sel: 'bg-amber-600 text-white', badge: 'bg-amber-50 border-amber-200', selBadge: 'border-amber-500 bg-amber-50 shadow-md' },
+  green: { ring: 'bg-green-100 text-green-600', sel: 'bg-green-600 text-white', badge: 'bg-green-50 border-green-200', selBadge: 'border-green-500 bg-green-50 shadow-md' },
   indigo: { ring: 'bg-indigo-100 text-indigo-600', sel: 'bg-indigo-600 text-white', badge: 'bg-indigo-50 border-indigo-200', selBadge: 'border-indigo-500 bg-indigo-50 shadow-md' },
-  rose:   { ring: 'bg-rose-100 text-rose-600',   sel: 'bg-rose-600 text-white',   badge: 'bg-rose-50 border-rose-200',   selBadge: 'border-rose-500 bg-rose-50 shadow-md'   },
+  rose: { ring: 'bg-rose-100 text-rose-600', sel: 'bg-rose-600 text-white', badge: 'bg-rose-50 border-rose-200', selBadge: 'border-rose-500 bg-rose-50 shadow-md' },
 };
 
 // ─── Single Node Card ─────────────────────────────────────────────────────────
 const NodeCard = ({ node, isSelected, isAdded, onClick }) => {
-  const meta  = NODE_META[node.data.label] || { icon: '🔷', label: node.data.label.replaceAll('_', ' '), desc: 'AI Workflow Node', color: 'blue' };
+  const meta = NODE_META[node.data.label] || { icon: '🔷', label: node.data.label.replaceAll('_', ' '), desc: 'AI Workflow Node', color: 'blue' };
   const color = COLOR_MAP[meta.color] || COLOR_MAP.blue;
 
   return (
@@ -102,11 +102,11 @@ const CategorySection = ({ title, emoji, count, children, defaultOpen = true, ac
 // ─── Main LeftModule ──────────────────────────────────────────────────────────
 const LeftModule = () => {
   const dispatch = useDispatch();
-  const clickedNodeId  = useSelector((state) => state.flow.clickedNodeId);
-  const addedNodeIds   = useSelector((state) => state.flow.addedNodeIds);
+  const clickedNodeId = useSelector((state) => state.flow.clickedNodeId);
+  const addedNodeIds = useSelector((state) => state.flow.addedNodeIds);
 
-  const [nodes, setNodes]   = useState([]);
-  const [query, setQuery]   = useState('');
+  const [nodes, setNodes] = useState([]);
+  const [query, setQuery] = useState('');
 
   // Fetch node registry from backend
   useEffect(() => {
@@ -118,6 +118,7 @@ const LeftModule = () => {
         const newNodes = Object.entries(result)
           .filter(([, name]) => name !== '__start__' && name !== '__end__')
           .map(([id, name]) => ({ id: String(id), data: { label: name } }));
+        console.log("new codes", newNodes);
         setNodes(newNodes);
       } catch (err) {
         console.error('error fetching nodes:', err);
@@ -146,9 +147,9 @@ const LeftModule = () => {
   );
 
   // Split by category
-  const aiNodes      = filtered.filter(n => NODE_META[n.data.label]?.category === 'ai');
+  const aiNodes = filtered.filter(n => NODE_META[n.data.label]?.category === 'ai');
   const studentNodes = filtered.filter(n => NODE_META[n.data.label]?.category === 'student');
-  const actionNodes  = filtered.filter(n => NODE_META[n.data.label]?.category === 'action');
+  const actionNodes = filtered.filter(n => NODE_META[n.data.label]?.category === 'action');
 
   return (
     <div className="h-full flex flex-col border-r border-gray-200 bg-gray-50">

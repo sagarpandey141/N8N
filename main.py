@@ -84,16 +84,18 @@ def final_llm(state):
        state.accuracy=response.accuracy
        return state
 def conditional_reroute(state):
+     if not state.accuracy:
+        return "FALSE"
      value =int(state.accuracy.replace("%", ""))
      if value < 97:
         return False
      return True
 
 graph = StateGraph(MessagesStates)
-graph.add_node(routing)
-graph.add_node(non_coding_llm)
-graph.add_node(coding_llm)
-graph.add_node(final_llm)
+graph.add_node("routing",routing)
+graph.add_node("non_coding_llm",non_coding_llm)
+graph.add_node("coding_llm",coding_llm)
+graph.add_node("final_llm",final_llm)
 graph.add_edge(START, "routing")
 graph.add_conditional_edges(
 "routing",
@@ -109,7 +111,7 @@ conditional_reroute,{
 }
 )
 graph.add_edge("non_coding_llm", END)
-graph = graph.compile()
+app=graph.compile()
 
 def main():
   query = input("> ")
@@ -119,8 +121,9 @@ def main():
         accuracy="",
         is_coding=False
     )
-
-  result = graph.invoke(initial_state)
-  print("result",result["llm_result"])
-
+  for event in app.stream(initial_state):
+       print("Event",event)
+#   result = graph.invoke(initial_state)
+#   print("result",result["llm_result"])
+  
 main()
