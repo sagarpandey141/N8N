@@ -165,7 +165,7 @@ Flowbuilder AI Team"""
     message.attach(MIMEText(body, "plain"))
 
     try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
         server.starttls()
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
@@ -173,8 +173,27 @@ Flowbuilder AI Team"""
         print(f"📧 [EMAIL SERVICE] OTP successfully sent to {receiver_email}!")
         return True
     except Exception as e:
-        print(f"❌ [EMAIL SERVICE] Error sending OTP to {receiver_email}: {e}")
-        return False
+        print(f"⚠️ [EMAIL SERVICE] Port 587 failed: {e}. Trying port 465...")
+        try:
+            server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
+            server.quit()
+            print(f"📧 [EMAIL SERVICE] OTP successfully sent to {receiver_email} via port 465!")
+            return True
+        except Exception as e2:
+            print(f"⚠️ [EMAIL SERVICE] Port 465 failed: {e2}. Trying IPv4 explicitly...")
+            try:
+                server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10, source_address=('0.0.0.0', 0))
+                server.starttls()
+                server.login(SENDER_EMAIL, SENDER_PASSWORD)
+                server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
+                server.quit()
+                print(f"📧 [EMAIL SERVICE] OTP successfully sent to {receiver_email} via IPv4!")
+                return True
+            except Exception as e3:
+                print(f"❌ [EMAIL SERVICE] Error sending OTP to {receiver_email}: {e3}")
+                return False
 
 #SYSTEM PROMPT
 SYSTEM_PROMPT_Resume_Reviewer="""
@@ -303,14 +322,31 @@ def Send_AI_Response(state):
       message.attach(MIMEText(html_body, "html"))
 
       try:
-          server = smtplib.SMTP("smtp.gmail.com", 587)
+          server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
           server.starttls()
           server.login(SENDER_EMAIL, SENDER_PASSWORD)
           server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
           server.quit()
           print(f"📧 [Send_AI_Response] HTML mail with {len(collected)} section(s) sent to {receiver_email}")
       except Exception as e:
-          print(f"❌ [Send_AI_Response] Failed to send email: {e}")
+          print(f"⚠️ [Send_AI_Response] Port 587 failed: {e}. Trying port 465...")
+          try:
+              server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
+              server.login(SENDER_EMAIL, SENDER_PASSWORD)
+              server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
+              server.quit()
+              print(f"📧 [Send_AI_Response] HTML mail with {len(collected)} section(s) sent to {receiver_email} via port 465")
+          except Exception as e2:
+              print(f"⚠️ [Send_AI_Response] Port 465 failed: {e2}. Trying IPv4 explicitly...")
+              try:
+                  server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10, source_address=('0.0.0.0', 0))
+                  server.starttls()
+                  server.login(SENDER_EMAIL, SENDER_PASSWORD)
+                  server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
+                  server.quit()
+                  print(f"📧 [Send_AI_Response] HTML mail with {len(collected)} section(s) sent to {receiver_email} via IPv4")
+              except Exception as e3:
+                  print(f"❌ [Send_AI_Response] Failed to send email: {e3}")
 
       return state
 
