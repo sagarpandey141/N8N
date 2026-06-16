@@ -9,15 +9,15 @@ import { ToastContainer, toast } from 'react-toastify';
 
 // Mapping labels to corresponding icons
 const iconMap = {
-  'Email_Suggest':       <FaBrain className="w-5 h-5" />,
-  'mail_to_user':        <CiVoicemail className="w-5 h-5 text-indigo-500 font-bold" />,
-  'Resume_Reviewer':     <FaICursor className="w-5 h-5 text-teal-500" />,
-  'Cover_Letter':        <FaBrain className="w-5 h-5 text-pink-500" />,
-  'Important_Questions': <span style={{fontSize:'14px'}}>❓</span>,
-  'MCQ_Generator':       <span style={{fontSize:'14px'}}>📝</span>,
-  'Study_Planner':       <span style={{fontSize:'14px'}}>📅</span>,
-  'START':               <FaPlay className="w-3 h-3 text-green-500" />,
-  'END':                 <FaStop className="w-3 h-3 text-red-500" />,
+  'Email_Suggest': <FaBrain className="w-5 h-5" />,
+  'mail_to_user': <CiVoicemail className="w-5 h-5 text-indigo-500 font-bold" />,
+  'Resume_Reviewer': <FaICursor className="w-5 h-5 text-teal-500" />,
+  'Cover_Letter': <FaBrain className="w-5 h-5 text-pink-500" />,
+  'Important_Questions': <span style={{ fontSize: '14px' }}>❓</span>,
+  'MCQ_Generator': <span style={{ fontSize: '14px' }}>📝</span>,
+  'Study_Planner': <span style={{ fontSize: '14px' }}>📅</span>,
+  'START': <FaPlay className="w-3 h-3 text-green-500" />,
+  'END': <FaStop className="w-3 h-3 text-red-500" />,
 };
 
 // Custom React Flow node component rendering Name, Icon and Active state indicator
@@ -35,8 +35,8 @@ const CustomNode = ({ id, data, selected }) => {
 
   return (
     <div className={`px-4 py-3 rounded-xl border-2 transition-all duration-200 flex items-center gap-3 min-w-[200px] ${isSelected
-        ? 'border-blue-500 bg-blue-50/95 text-blue-900 shadow-md scale-[1.02]'
-        : 'border-gray-200 bg-white text-gray-800 shadow-sm hover:shadow-md'
+      ? 'border-blue-500 bg-blue-50/95 text-blue-900 shadow-md scale-[1.02]'
+      : 'border-gray-200 bg-white text-gray-800 shadow-sm hover:shadow-md'
       }`}>
       {label !== 'START' && (
         <Handle
@@ -60,7 +60,7 @@ const CustomNode = ({ id, data, selected }) => {
           </span>
         </div>
       </div>
-      
+
       {/* Cut / Remove Icon (not for START/END) */}
       {label !== 'START' && label !== 'END' && (
         <button
@@ -261,10 +261,10 @@ const Centerconsole = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           state: {
-            query:     inputs.jd        || '',
-            Resume:    inputs.resumeText || '',
-            email:     inputs.email      || '',
-            book_text: inputs.bookText   || '',
+            query: inputs.jd || '',
+            Resume: inputs.resumeText || '',
+            email: inputs.email || '',
+            book_text: inputs.bookText || '',
           },
           int_map: finalmapping.map(id => parseInt(id)),
         }),
@@ -325,7 +325,7 @@ const Centerconsole = () => {
           disabled={running}
           className={`flex items-center gap-2 px-4 py-1.5 rounded-xl font-semibold text-sm
             transition-all duration-200
-            ${ running
+            ${running
               ? 'bg-blue-300 text-white cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700 active:scale-95 text-white shadow-sm'
             }`}

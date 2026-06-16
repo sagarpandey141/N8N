@@ -177,14 +177,9 @@ Flowbuilder AI Team"""
         return False
 
 #SYSTEM PROMPT
-SYSTEM_PROMPT_JD_CODING="""
-   You are an ai helpfull assitant you will be given JD (job description) you have to return best email ( subject + body) for sending for refferal request. 
-   IMPORTANT: Do NOT use the phrase 'on behalf of' anywhere in the template. 
-   Also, you MUST include 'test :' somewhere in the template.
-"""
-
 SYSTEM_PROMPT_Resume_Reviewer="""
-   You are an ai helpfull assitant you will be given Resume you have to return your overall opinion which area he can improve 
+   You are an expert technical recruiter and resume reviewer. You will be given a Resume.
+   Provide a concise, clear, and actionable review. Highlight strengths briefly and focus primarily on specific areas of improvement to increase chances of getting shortlisted for technical interviews.
 """
 
 SYSTEM_PROMPT_Cover_Letter="""
@@ -192,16 +187,15 @@ SYSTEM_PROMPT_Cover_Letter="""
 """
 
 SYSTEM_PROMPT_Important_Questions="""
-   You are an expert educational AI assistant. You will be given content from a book or study material.
-   Extract and list the most important questions a student should be able to answer after studying this material.
-   Format your response as a numbered list of clear, concise questions. Focus on key concepts, definitions,
-   and critical thinking questions that test deep understanding.
+   You are an expert technical interviewer. You will be given content from a resume, study material, or a topic.
+   Based on the provided content, list the most important and challenging questions that an interviewer is likely to ask in a technical interview.
+   Format your response as a numbered list of clear, concise interview questions. Focus on testing deep technical understanding.
 """
 
 SYSTEM_PROMPT_MCQ_Generator="""
-   You are an expert quiz creator. You will be given study material or a topic.
-   Generate 10 well-crafted multiple choice questions (MCQs) with 4 options each (A, B, C, D).
-   Mark the correct answer clearly. Make the distractors plausible to test real understanding.
+   You are an expert technical interviewer and quiz creator. You will be given study material, a topic, or a Job Description (JD).
+   Generate 10 well-crafted multiple choice questions (MCQs) focused on testing skills relevant to technical interviews based on the provided content.
+   Mark the correct answer clearly. Make the distractors plausible to test deep technical understanding.
    Format: Q1. [question]\nA) ... B) ... C) ... D) ...\nAnswer: [letter]
 """
 
@@ -215,32 +209,142 @@ SYSTEM_PROMPT_Study_Planner="""
    Make the plan realistic and actionable for a dedicated student.
 """
 
-# take JD query and return best subject and body for referral email 
-def Email_Suggest(state):
-      structured_llm = coding_llm_model.with_structured_output(messageStates)
-      response = structured_llm.invoke(
-               [
-                    {"role":"system","content":SYSTEM_PROMPT_JD_CODING},
-                    {"role":"user","content":state.query}
-                ]
-            )
-      print("respo",response)
-      state.subject=response.subject
-      state.body=response.body
+# Action node: directly emails whatever AI response is already in state to the recipient
+def Send_AI_Response(state):
+      receiver_email = state.email
+
+      if not SENDER_EMAIL or not SENDER_PASSWORD:
+          print("⚠️ [Send_AI_Response] SENDER_EMAIL or SENDER_PASSWORD is not configured in .env!")
+          return state
+
+      if not receiver_email:
+          print("⚠️ [Send_AI_Response] No receiver email in state — skipping send.")
+          return state
+
+      username = receiver_email.split('@')[0]
+
+      # ── Collect ALL non-empty AI sections ────────────────────────────────────
+      SECTIONS = [
+          ("Ai_Response",  "🤖 AI Review",                  "#4f46e5"),  # indigo
+          ("mcqs",         "📝 Multiple Choice Questions",   "#059669"),  # emerald
+          ("questions",    "❓ Important Questions",          "#d97706"),  # amber
+          ("study_plan",   "📅 Study Plan",                  "#0284c7"),  # sky
+      ]
+
+      collected = []
+      subject_parts = []
+      for field, label, color in SECTIONS:
+          value = getattr(state, field, None)
+          if value and isinstance(value, str) and value.strip():
+              collected.append((label, color, value.strip()))
+              subject_parts.append(label.split(" ", 1)[-1])   # e.g. "AI Review"
+
+      # Fallback: use body/subject from older nodes
+      if not collected and state.body:
+          collected.append((state.subject or "AI Response", "#6366f1", state.body))
+          subject_parts.append("Response")
+
+      if not collected:
+          print("⚠️ [Send_AI_Response] Nothing to send — all content fields are empty.")
+          return state
+
+      email_subject = f"Your AI Results: {' + '.join(subject_parts)} (for {username})"
+
+      # ── Build styled HTML email ───────────────────────────────────────────────
+      sections_html = ""
+      for label, color, content in collected:
+          # Convert plain-text newlines to <br> for HTML
+          content_html = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+          sections_html += f"""
+          <div style="margin-bottom:28px; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            <div style="background:{color}; padding:12px 20px;">
+              <h2 style="margin:0; font-size:15px; font-weight:700; color:#ffffff; letter-spacing:0.3px;">{label}</h2>
+            </div>
+            <div style="background:#ffffff; padding:18px 20px; font-size:14px; line-height:1.7; color:#374151;">
+              {content_html}
+            </div>
+          </div>
+          """
+
+      html_body = f"""
+      <!DOCTYPE html>
+      <html lang="en">
+      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+      <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+        <div style="max-width:640px;margin:32px auto;padding:0 16px;">
+
+          <!-- Header -->
+          <div style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);border-radius:16px 16px 0 0;padding:28px 28px 20px;">
+            <div style="font-size:28px;margin-bottom:6px;">✨</div>
+            <h1 style="margin:0;font-size:20px;font-weight:800;color:#ffffff;">Your AI Flow Results</h1>
+            <p style="margin:6px 0 0;font-size:13px;color:#c4b5fd;">Hi <strong>{username}</strong>, here are your combined AI-generated results.</p>
+          </div>
+
+          <!-- Body -->
+          <div style="background:#f9fafb;padding:24px 20px;">
+            {sections_html}
+          </div>
+
+          <!-- Footer -->
+          <div style="background:#1f2937;border-radius:0 0 16px 16px;padding:16px 24px;text-align:center;">
+            <p style="margin:0;font-size:11px;color:#9ca3af;">Generated by <strong style="color:#a78bfa;">AI Flow Builder</strong> &mdash; {len(collected)} section(s) included</p>
+          </div>
+
+        </div>
+      </body>
+      </html>
+      """
+
+      # ── Send as HTML email ────────────────────────────────────────────────────
+      message = MIMEMultipart("alternative")
+      message["From"]    = SENDER_EMAIL
+      message["To"]      = receiver_email
+      message["Subject"] = email_subject
+      message.attach(MIMEText(html_body, "html"))
+
+      try:
+          server = smtplib.SMTP("smtp.gmail.com", 587)
+          server.starttls()
+          server.login(SENDER_EMAIL, SENDER_PASSWORD)
+          server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
+          server.quit()
+          print(f"📧 [Send_AI_Response] HTML mail with {len(collected)} section(s) sent to {receiver_email}")
+      except Exception as e:
+          print(f"❌ [Send_AI_Response] Failed to send email: {e}")
+
       return state
+
+def build_combined_context(state):
+      """Combines all available state inputs into a single rich context string."""
+      parts = []
+      if getattr(state, "Resume", None) and state.Resume.strip():
+          parts.append(f"--- CANDIDATE RESUME ---\n{state.Resume.strip()}")
+      if getattr(state, "query", None) and state.query.strip():
+          parts.append(f"--- JOB DESCRIPTION (JD) ---\n{state.query.strip()}")
+      if getattr(state, "topic", None) and state.topic.strip():
+          parts.append(f"--- TARGET TOPIC / SYLLABUS ---\n{state.topic.strip()}")
+      if getattr(state, "book_text", None) and state.book_text.strip():
+          parts.append(f"--- BOOK / REFERENCE MATERIAL ---\n{state.book_text.strip()}")
+      if getattr(state, "Ai_Response", None) and state.Ai_Response.strip():
+          parts.append(f"--- PREVIOUS AI REVIEW / FEEDBACK ---\n{state.Ai_Response.strip()}")
+          
+      if not parts:
+          return "No specific context provided."
+          
+      return "\n\n".join(parts)
 
 # take Resume and send the opinion 
 def Resume_Reviewer(state):
       
       structured_llm = coding_llm_model.with_structured_output(messageStates)
-      resume_content = state.Resume if state.Resume else state.query
+      combined_content = build_combined_context(state)
+
       response = structured_llm.invoke(
                [
                     {"role":"system","content":SYSTEM_PROMPT_Resume_Reviewer},
-                    {"role":"user","content":resume_content}
+                    {"role":"user","content":combined_content}
                 ]
             )
-      print("respo",response)
       state.Ai_Response=response.Ai_Response
       return state
 
@@ -249,11 +353,11 @@ def Resume_Reviewer(state):
 # NOTE: does NOT overwrite Ai_Response so previous node output is preserved in results
 def Important_Questions(state):
       structured_llm = coding_llm_model.with_structured_output(messageStates)
-      content = state.book_text or state.Resume or state.Ai_Response or state.query
+      combined_content = build_combined_context(state)
       response = structured_llm.invoke(
                [
                     {"role":"system","content":SYSTEM_PROMPT_Important_Questions},
-                    {"role":"user","content":content}
+                    {"role":"user","content":combined_content}
                 ]
             )
       print("Important_Questions respo",response)
@@ -265,11 +369,11 @@ def Important_Questions(state):
 # NOTE: does NOT overwrite Ai_Response so previous node output is preserved in results
 def MCQ_Generator(state):
       structured_llm = coding_llm_model.with_structured_output(messageStates)
-      content = state.book_text or state.Resume or state.Ai_Response or state.query
+      combined_content = build_combined_context(state)
       response = structured_llm.invoke(
                [
                     {"role":"system","content":SYSTEM_PROMPT_MCQ_Generator},
-                    {"role":"user","content":content}
+                    {"role":"user","content":combined_content}
                 ]
             )
       print("MCQ_Generator respo",response)
@@ -281,12 +385,11 @@ def MCQ_Generator(state):
 # NOTE: does NOT overwrite Ai_Response so previous node output is preserved in results
 def Study_Planner(state):
       structured_llm = coding_llm_model.with_structured_output(messageStates)
-      # Prefer Resume text directly, then previous AI output, then user query
-      content = state.Resume or state.Ai_Response or state.query
+      combined_content = build_combined_context(state)
       response = structured_llm.invoke(
                [
                     {"role":"system","content":SYSTEM_PROMPT_Study_Planner},
-                    {"role":"user","content":content}
+                    {"role":"user","content":combined_content}
                 ]
             )
       print("Study_Planner respo",response)
@@ -296,10 +399,11 @@ def Study_Planner(state):
 # cover letter Gen
 def Cover_Letter(state):
       structured_llm = coding_llm_model.with_structured_output(messageStates)
+      combined_content = build_combined_context(state)
       response = structured_llm.invoke(
                [
                     {"role":"system","content":SYSTEM_PROMPT_Cover_Letter},
-                    {"role":"user","content":state.query}
+                    {"role":"user","content":combined_content}
                 ]
             )
       print("respo",response)
@@ -307,71 +411,9 @@ def Cover_Letter(state):
       return state
 
 
-# mail to user
-# Works with ANY preceding node — checks every dedicated output field in priority order:
-#   subject+body (Email_Suggest) > study_plan > mcqs > questions > Ai_Response (Resume_Reviewer / Cover_Letter)
-def mail_to_user(state):
-    receiver_email = state.email
-
-    if not SENDER_EMAIL or not SENDER_PASSWORD:
-        print("⚠️ [EMAIL SERVICE] SENDER_EMAIL or SENDER_PASSWORD is not configured in .env!")
-        return state
-
-    if not receiver_email:
-        print("⚠️ [EMAIL SERVICE] No receiver email in state — skipping send.")
-        return state
-
-    # ── Smart subject / body resolution ──────────────────────────────────────
-    # Priority 1: Email_Suggest (subject + body both set)
-    if state.subject and state.body:
-        email_subject = state.subject
-        email_body    = state.body
-
-    # Priority 2: Study Planner
-    elif state.study_plan:
-        email_subject = "Your Personalised Study Plan"
-        email_body    = state.study_plan
-
-    # Priority 3: MCQ Generator
-    elif state.mcqs:
-        email_subject = "MCQs Generated for You"
-        email_body    = state.mcqs
-
-    # Priority 4: Important Questions
-    elif state.questions:
-        email_subject = "Important Questions from Your Study Material"
-        email_body    = state.questions
-
-    # Priority 5: Generic AI response (Resume Reviewer, Cover Letter, etc.)
-    elif state.Ai_Response:
-        email_subject = "Your AI-Generated Result"
-        email_body    = state.Ai_Response
-
-    else:
-        print("⚠️ [EMAIL SERVICE] Nothing to send — all content fields are empty.")
-        return state
-    # ─────────────────────────────────────────────────────────────────────────
-
-    message = MIMEMultipart()
-    message["From"]    = SENDER_EMAIL
-    message["To"]      = receiver_email
-    username = receiver_email.split('@')[0]
-    message["Subject"] = f"{email_subject} (for {username})"
-    message.attach(MIMEText(email_body, "plain"))
-
-    # Connect to Gmail SMTP and send
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.starttls()
-    server.login(SENDER_EMAIL, SENDER_PASSWORD)
-    server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
-    server.quit()
-    print(f"📧 [EMAIL SERVICE] Mail sent successfully to {receiver_email}")
-    return state
-
 #mapping 
 mapping = {
-     "1":Email_Suggest.__name__,
-     "2":mail_to_user.__name__,
+     "1":Send_AI_Response.__name__,
      "3":START,
      "4":END,
      "5":Resume_Reviewer.__name__,
@@ -403,8 +445,7 @@ def process(request:ProcessRequest):
            book_text=request.state.book_text
       )
       graph = StateGraph(messageStates)
-      graph.add_node(Email_Suggest)
-      graph.add_node(mail_to_user)
+      graph.add_node(Send_AI_Response)
       graph.add_node(Resume_Reviewer)
       graph.add_node(Cover_Letter)
       graph.add_node(Important_Questions)

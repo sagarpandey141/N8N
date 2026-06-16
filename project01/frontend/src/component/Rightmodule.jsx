@@ -65,27 +65,66 @@ const RunHint = () => (
   </div>
 );
 
-// ─── Email Suggest Panel ────────────────────────────────────────────────────
+// ─── Send AI Response Panel ─────────────────────────────────────────────────
 
-const EmailSuggestPanel = ({ onClear }) => {
+const SendAIResponsePanel = ({ onClear }) => {
   const dispatch = useDispatch();
   const inputs = useSelector((state) => state.flow.inputs);
+  const userEmail = useSelector((state) => state.flow.userEmail);
+
+  // Pre-fill from logged-in user email on first render
+  React.useEffect(() => {
+    if (userEmail && !inputs.email) {
+      dispatch(updateInput({ key: 'email', value: userEmail }));
+    }
+  }, [userEmail]);
+
+  const isLoggedIn = !!userEmail;
 
   return (
     <div className="flex flex-col gap-4">
-      <PanelHeader icon="🧠" title="Email Suggest" subtitle="test email send" onClear={onClear} />
+      <PanelHeader icon="📤" title="Send AI Response" subtitle="Email the AI result directly to a recipient" onClear={onClear} />
+
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-          Job Description
+          Recipient Email
         </label>
-        <textarea
-          value={inputs.jd}
-          onChange={e => dispatch(updateInput({ key: 'jd', value: e.target.value }))}
-          rows={8}
-          placeholder="Paste the Job Description here…"
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition placeholder-gray-300 bg-gray-50"
+
+        {/* Logged-in badge */}
+        {isLoggedIn && (
+          <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <p className="text-[11px] text-emerald-700 font-medium">
+              Logged in as <span className="font-bold">{userEmail}</span>
+            </p>
+          </div>
+        )}
+
+        <input
+          id="send-ai-recipient-email"
+          type="email"
+          value={inputs.email}
+          onChange={e => dispatch(updateInput({ key: 'email', value: e.target.value }))}
+          placeholder="recipient@example.com"
+          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-rose-500/40 focus:border-rose-500 transition placeholder-gray-300 bg-gray-50"
         />
+
+        {isLoggedIn && inputs.email !== userEmail && (
+          <button
+            onClick={() => dispatch(updateInput({ key: 'email', value: userEmail }))}
+            className="mt-1.5 text-[11px] text-rose-500 hover:text-rose-700 font-medium transition-colors"
+          >
+            ↩ Reset to my email
+          </button>
+        )}
+
+        <p className="mt-1.5 text-[10px] text-gray-400">
+          {isLoggedIn
+            ? 'Pre-filled with your account email. You can change it to send to someone else.'
+            : 'Enter the email address that should receive the AI result.'}
+        </p>
       </div>
+
       <RunHint />
     </div>
   );
@@ -172,6 +211,19 @@ const ResumeReviewerPanel = ({ onClear }) => {
           <pre className="mt-2 bg-gray-100 rounded-lg p-2.5 text-[11px] leading-relaxed overflow-auto max-h-32 whitespace-pre-wrap">{inputs.resumeText.slice(0, 600)}…</pre>
         </details>
       )}
+
+      <div>
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+          Job Description (Optional)
+        </label>
+        <textarea
+          value={inputs.jd}
+          onChange={e => dispatch(updateInput({ key: 'jd', value: e.target.value }))}
+          rows={5}
+          placeholder="Paste the Job Description here to get targeted feedback…"
+          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition placeholder-gray-300 bg-gray-50"
+        />
+      </div>
 
       <RunHint />
     </div>
@@ -306,12 +358,12 @@ const MCQGeneratorPanel = ({ onClear }) => {
       </div>
 
       <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Topic / Chapter</label>
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Topic / Chapter / JD</label>
         <textarea
           value={inputs.jd}
           onChange={e => dispatch(updateInput({ key: 'jd', value: e.target.value }))}
           rows={3}
-          placeholder="e.g. Newton's Laws of Motion, Chapter 3…"
+          placeholder="e.g. ReactJS, System Design, or paste a Job Description…"
           className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500 transition placeholder-gray-300 bg-gray-50"
         />
       </div>
@@ -345,32 +397,6 @@ const StudyPlannerPanel = ({ onClear }) => {
   );
 };
 
-// ─── Mail To User Panel ─────────────────────────────────────────────────────
-
-const MailToUserPanel = ({ onClear }) => {
-  const dispatch = useDispatch();
-  const inputs = useSelector((state) => state.flow.inputs);
-
-  return (
-    <div className="flex flex-col gap-4">
-      <PanelHeader icon="📧" title="Mail to User" subtitle="Enter the recipient — email is sent when the flow runs" onClear={onClear} />
-      <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-          Recipient Email
-        </label>
-        <input
-          type="email"
-          value={inputs.email}
-          onChange={e => dispatch(updateInput({ key: 'email', value: e.target.value }))}
-          placeholder="recipient@example.com"
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition placeholder-gray-300 bg-gray-50"
-        />
-      </div>
-      <RunHint />
-    </div>
-  );
-};
-
 // ─── Empty / Placeholder State ──────────────────────────────────────────────
 
 const EmptyState = () => (
@@ -390,9 +416,9 @@ const EmptyState = () => (
       <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1.5 px-1">🤖 AI Nodes</p>
       <div className="flex flex-col gap-1.5">
         {[
-          { icon: '🧠', label: 'Email Suggester',       desc: 'test email send' },
-          { icon: '📄', label: 'Resume Reviewer',        desc: 'PDF → AI feedback' },
-          { icon: '✍️', label: 'Cover Letter Writer',    desc: 'JD → cover letter' },
+          { icon: '🧠', label: 'Email Suggester', desc: 'test email send' },
+          { icon: '📄', label: 'Resume Reviewer', desc: 'PDF → AI feedback' },
+          { icon: '✍️', label: 'Cover Letter Writer', desc: 'JD → cover letter' },
         ].map(item => (
           <div key={item.label} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100">
             <span className="text-base">{item.icon}</span>
@@ -411,8 +437,8 @@ const EmptyState = () => (
       <div className="flex flex-col gap-1.5">
         {[
           { icon: '❓', label: 'Important Q Suggester', desc: 'PDF book → key questions' },
-          { icon: '📝', label: 'MCQ Generator',         desc: 'Topic / PDF → MCQs' },
-          { icon: '📅', label: 'Study Planner',         desc: 'Syllabus → study schedule' },
+          { icon: '📝', label: 'MCQ Generator', desc: 'Topic / PDF → MCQs' },
+          { icon: '📅', label: 'Study Planner', desc: 'Syllabus → study schedule' },
         ].map(item => (
           <div key={item.label} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
             <span className="text-base">{item.icon}</span>
@@ -430,7 +456,7 @@ const EmptyState = () => (
       <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1.5 px-1">⚡ Actions</p>
       <div className="flex flex-col gap-1.5">
         {[
-          { icon: '📧', label: 'Email Send', desc: 'Send the generated result via email' },
+          { icon: '📤', label: 'Send AI Response', desc: 'Email the AI result to a recipient' },
         ].map(item => (
           <div key={item.label} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-rose-50 border border-rose-100">
             <span className="text-base">{item.icon}</span>
@@ -452,12 +478,12 @@ const FlowResultPanel = ({ result, onClear }) => {
 
   // Extract all non-null, non-empty string content fields in display priority order
   const FIELD_META = [
-    { key: 'subject',     label: '📬 Email Subject', color: 'text-blue-500'   },
-    { key: 'body',        label: '📝 Email Body',    color: 'text-blue-400'   },
-    { key: 'study_plan', label: '📅 Study Plan',   color: 'text-indigo-500' },
-    { key: 'Ai_Response',label: '🤖 AI Response',  color: 'text-emerald-600'},
-    { key: 'questions',  label: '❓ Questions',     color: 'text-amber-600'  },
-    { key: 'mcqs',       label: '📝 MCQs',          color: 'text-green-600'  },
+    { key: 'subject', label: '📬 Email Subject', color: 'text-blue-500' },
+    { key: 'body', label: '📝 Email Body', color: 'text-blue-400' },
+    { key: 'study_plan', label: '📅 Study Plan', color: 'text-indigo-500' },
+    { key: 'Ai_Response', label: '🤖 AI Response', color: 'text-emerald-600' },
+    { key: 'questions', label: '❓ Questions', color: 'text-amber-600' },
+    { key: 'mcqs', label: '📝 MCQs', color: 'text-green-600' },
   ];
 
   // Build sections from whichever fields have actual content
@@ -527,14 +553,13 @@ const Rightmodule = () => {
 
   const renderPanel = () => {
     switch (selectedNodeLabel) {
-      case 'Email_Suggest':         return <EmailSuggestPanel onClear={handleClear} />;
-      case 'Resume_Reviewer':       return <ResumeReviewerPanel onClear={handleClear} />;
-      case 'Cover_Letter':          return <CoverLetterPanel onClear={handleClear} />;
-      case 'mail_to_user':          return <MailToUserPanel onClear={handleClear} />;
-      case 'Important_Questions':   return <ImportantQuestionsPanel onClear={handleClear} />;
-      case 'MCQ_Generator':         return <MCQGeneratorPanel onClear={handleClear} />;
-      case 'Study_Planner':         return <StudyPlannerPanel onClear={handleClear} />;
-      default:                      return <EmptyState />;
+      case 'Send_AI_Response': return <SendAIResponsePanel onClear={handleClear} />;
+      case 'Resume_Reviewer': return <ResumeReviewerPanel onClear={handleClear} />;
+      case 'Cover_Letter': return <CoverLetterPanel onClear={handleClear} />;
+      case 'Important_Questions': return <ImportantQuestionsPanel onClear={handleClear} />;
+      case 'MCQ_Generator': return <MCQGeneratorPanel onClear={handleClear} />;
+      case 'Study_Planner': return <StudyPlannerPanel onClear={handleClear} />;
+      default: return <EmptyState />;
     }
   };
 
@@ -544,10 +569,9 @@ const Rightmodule = () => {
       <div className="px-4 py-3.5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${
-              flowResult ? 'bg-emerald-400 animate-pulse' :
+            <span className={`w-2 h-2 rounded-full ${flowResult ? 'bg-emerald-400 animate-pulse' :
               selectedNodeLabel ? 'bg-green-400 animate-pulse' : 'bg-gray-300'
-            }`} />
+              }`} />
             <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest">
               {flowResult ? '✅ Result Ready' : selectedNodeLabel ? selectedNodeLabel.replaceAll('_', ' ') : 'Node Config'}
             </h2>

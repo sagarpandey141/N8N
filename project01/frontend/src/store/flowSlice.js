@@ -87,12 +87,12 @@ const flowSlice = createSlice({
   },
 });
 
-export const { 
-  setClickedNodeId, 
+export const {
+  setClickedNodeId,
   setSelectedNodeLabel,
-  clearClickedNodeId, 
-  addNodeId, 
-  removeNodeId, 
+  clearClickedNodeId,
+  addNodeId,
+  removeNodeId,
   setAddedNodeIds,
   clearCanvas,
   setIntMap,

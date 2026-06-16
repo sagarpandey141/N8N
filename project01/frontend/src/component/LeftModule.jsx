@@ -6,14 +6,14 @@ import { setClickedNodeId, setSelectedNodeLabel, addNodeId, removeNodeId, clearC
 // Maps each node label to its display info and category
 const NODE_META = {
   // AI Nodes
-  Email_Suggest: { icon: '🧠', label: 'Email Suggester', desc: 'Generate referral email from JD', category: 'ai', color: 'blue' },
+  Send_AI_Response: { icon: '📤', label: 'Send AI Response', desc: 'Email the AI result directly to recipient', category: 'action', color: 'blue' },
   Resume_Reviewer: { icon: '📄', label: 'Resume Reviewer', desc: 'Get AI feedback on your resume', category: 'ai', color: 'teal' },
   Cover_Letter: { icon: '✍️', label: 'Cover Letter Writer', desc: 'Auto-generate a tailored cover letter', category: 'ai', color: 'purple' },
   Important_Questions: { icon: '❓', label: 'Important Q Suggester', desc: 'Upload PDF book → key questions', category: 'student', color: 'amber' },
   MCQ_Generator: { icon: '📝', label: 'MCQ Generator', desc: 'Create multiple-choice questions', category: 'student', color: 'green' },
   Study_Planner: { icon: '📅', label: 'Study Planner', desc: 'Build a personalised study plan', category: 'student', color: 'indigo' },
   // Actions
-  mail_to_user: { icon: '📧', label: 'Email Send', desc: 'Send generated email to recipient', category: 'action', color: 'rose' },
+  Send_AI_Response: { icon: '📤', label: 'Send AI Response', desc: 'Email the AI result directly to recipient', category: 'action', color: 'rose' },
 };
 
 const COLOR_MAP = {
