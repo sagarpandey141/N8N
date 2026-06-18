@@ -2,7 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
-import smtplib
+import requests
 import random
 import json
 import os
@@ -11,8 +11,6 @@ import hashlib
 import base64
 import time
 from dotenv import load_dotenv
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from langgraph.graph import StateGraph, MessagesState, START, END
 from typing import List, Optional
 from pathlib import Path
@@ -31,9 +29,9 @@ load_dotenv(dotenv_path=env_path)
 
 coding_llm_model = ChatOpenAI(model="gpt-4.1")
 
-# Load SMTP credentials from environment variables (no hardcoded defaults)
-SENDER_EMAIL = os.getenv("SENDER_EMAIL")
-SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
+# Load email credentials from environment variables
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
 JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-flowbuilder-jwt-signing-key-123456")
 
 app.add_middleware(
@@ -86,8 +84,7 @@ def decode_jwt(token: str) -> Optional[dict]:
             return None
             
         return payload
-    except Exception as e:
-        print("JWT decode error:", e)
+    except Exception:
         return None
 
 class messageStates(BaseModel):
@@ -128,32 +125,62 @@ def load_canvas_states():
         try:
             with open(DB_FILE, "r") as f:
                 return json.load(f)
-        except Exception as e:
-            print("Error loading db.json:", e)
+        except Exception:
+            pass
     return {}
 
 def save_canvas_states(states):
     try:
         with open(DB_FILE, "w") as f:
             json.dump(states, f, indent=4)
-    except Exception as e:
-        print("Error saving to db.json:", e)
+    except Exception:
+        pass
 
 # In-memory OTP store (email -> OTP code)
 otp_store = {}
 
-# Helper function to send email OTP
-def send_email_otp(receiver_email: str, otp_code: str):
-    if not SENDER_EMAIL or not SENDER_PASSWORD:
-        print("⚠️ [EMAIL SERVICE] SENDER_EMAIL or SENDER_PASSWORD is not configured in .env!")
+# ── Brevo (Sendinblue) HTTP API email sender ──────────────────────────────
+# Free plan: 300 emails/day, any recipient, just verify sender email
+# Docs: https://developers.brevo.com/reference/sendtransacemail
+def send_email(receiver_email: str, subject: str, html_body: str = None, text_body: str = None) -> bool:
+    api_key = os.getenv("BREVO_API_KEY") or BREVO_API_KEY
+    sender = os.getenv("SENDER_EMAIL") or SENDER_EMAIL
+    if not api_key:
+        return False
+    if not sender:
         return False
 
-    message = MIMEMultipart()
-    message["From"] = SENDER_EMAIL
-    message["To"] = receiver_email
-    message["Subject"] = "Your Flowbuilder Verification Code"
+    payload = {
+        "sender": {"name": "FlowBuilder AI", "email": sender},
+        "to": [{"email": receiver_email}],
+        "subject": subject,
+    }
+    if html_body:
+        payload["htmlContent"] = html_body
+    if text_body:
+        payload["textContent"] = text_body
 
-    body = f"""Hello,
+    try:
+        response = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={
+                "accept": "application/json",
+                "api-key": api_key,
+                "content-type": "application/json",
+            },
+            json=payload,
+            timeout=10,
+        )
+        if response.status_code == 201:
+            return True
+        else:
+            return False
+    except Exception:
+        return False
+
+# OTP email sender
+def send_email_otp(receiver_email: str, otp_code: str) -> bool:
+    body_text = f"""Hello,
 
 Your Flowbuilder verification OTP code is: {otp_code}
 
@@ -161,39 +188,7 @@ Please enter this 6-digit code in the login screen to verify your email.
 
 Best regards,
 Flowbuilder AI Team"""
-    
-    message.attach(MIMEText(body, "plain"))
-
-    try:
-        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
-        server.starttls()
-        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-        server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
-        server.quit()
-        print(f"📧 [EMAIL SERVICE] OTP successfully sent to {receiver_email}!")
-        return True
-    except Exception as e:
-        print(f"⚠️ [EMAIL SERVICE] Port 587 failed: {e}. Trying port 465...")
-        try:
-            server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
-            server.quit()
-            print(f"📧 [EMAIL SERVICE] OTP successfully sent to {receiver_email} via port 465!")
-            return True
-        except Exception as e2:
-            print(f"⚠️ [EMAIL SERVICE] Port 465 failed: {e2}. Trying IPv4 explicitly...")
-            try:
-                server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10, source_address=('0.0.0.0', 0))
-                server.starttls()
-                server.login(SENDER_EMAIL, SENDER_PASSWORD)
-                server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
-                server.quit()
-                print(f"📧 [EMAIL SERVICE] OTP successfully sent to {receiver_email} via IPv4!")
-                return True
-            except Exception as e3:
-                print(f"❌ [EMAIL SERVICE] Error sending OTP to {receiver_email}: {e3}")
-                return False
+    return send_email(receiver_email, "Your Flowbuilder Verification Code", text_body=body_text)
 
 #SYSTEM PROMPT
 SYSTEM_PROMPT_Resume_Reviewer="""
@@ -231,13 +226,7 @@ SYSTEM_PROMPT_Study_Planner="""
 # Action node: directly emails whatever AI response is already in state to the recipient
 def Send_AI_Response(state):
       receiver_email = state.email
-
-      if not SENDER_EMAIL or not SENDER_PASSWORD:
-          print("⚠️ [Send_AI_Response] SENDER_EMAIL or SENDER_PASSWORD is not configured in .env!")
-          return state
-
       if not receiver_email:
-          print("⚠️ [Send_AI_Response] No receiver email in state — skipping send.")
           return state
 
       username = receiver_email.split('@')[0]
@@ -264,7 +253,6 @@ def Send_AI_Response(state):
           subject_parts.append("Response")
 
       if not collected:
-          print("⚠️ [Send_AI_Response] Nothing to send — all content fields are empty.")
           return state
 
       email_subject = f"Your AI Results: {' + '.join(subject_parts)} (for {username})"
@@ -314,39 +302,7 @@ def Send_AI_Response(state):
       </html>
       """
 
-      # ── Send as HTML email ────────────────────────────────────────────────────
-      message = MIMEMultipart("alternative")
-      message["From"]    = SENDER_EMAIL
-      message["To"]      = receiver_email
-      message["Subject"] = email_subject
-      message.attach(MIMEText(html_body, "html"))
-
-      try:
-          server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
-          server.starttls()
-          server.login(SENDER_EMAIL, SENDER_PASSWORD)
-          server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
-          server.quit()
-          print(f"📧 [Send_AI_Response] HTML mail with {len(collected)} section(s) sent to {receiver_email}")
-      except Exception as e:
-          print(f"⚠️ [Send_AI_Response] Port 587 failed: {e}. Trying port 465...")
-          try:
-              server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
-              server.login(SENDER_EMAIL, SENDER_PASSWORD)
-              server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
-              server.quit()
-              print(f"📧 [Send_AI_Response] HTML mail with {len(collected)} section(s) sent to {receiver_email} via port 465")
-          except Exception as e2:
-              print(f"⚠️ [Send_AI_Response] Port 465 failed: {e2}. Trying IPv4 explicitly...")
-              try:
-                  server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10, source_address=('0.0.0.0', 0))
-                  server.starttls()
-                  server.login(SENDER_EMAIL, SENDER_PASSWORD)
-                  server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
-                  server.quit()
-                  print(f"📧 [Send_AI_Response] HTML mail with {len(collected)} section(s) sent to {receiver_email} via IPv4")
-              except Exception as e3:
-                  print(f"❌ [Send_AI_Response] Failed to send email: {e3}")
+      send_email(receiver_email, email_subject, html_body=html_body)
 
       return state
 
@@ -396,8 +352,7 @@ def Important_Questions(state):
                     {"role":"user","content":combined_content}
                 ]
             )
-      print("Important_Questions respo",response)
-      state.questions = response.questions  # only write to own field
+      state.questions = response.questions
       return state
 
 # MCQ Generator
@@ -412,8 +367,7 @@ def MCQ_Generator(state):
                     {"role":"user","content":combined_content}
                 ]
             )
-      print("MCQ_Generator respo",response)
-      state.mcqs = response.mcqs  # only write to own field
+      state.mcqs = response.mcqs
       return state
 
 # Study Planner
@@ -428,8 +382,7 @@ def Study_Planner(state):
                     {"role":"user","content":combined_content}
                 ]
             )
-      print("Study_Planner respo",response)
-      state.study_plan = response.study_plan  # only write to own field
+      state.study_plan = response.study_plan
       return state
 
 # cover letter Gen
@@ -442,7 +395,6 @@ def Cover_Letter(state):
                     {"role":"user","content":combined_content}
                 ]
             )
-      print("respo",response)
       state.Ai_Response=response.Ai_Response
       return state
 
@@ -467,6 +419,18 @@ async def root():
 @app.get("/pre-fun")
 async def getId():
     return mapping
+
+@app.get("/test-email")
+async def test_email(to: str):
+    """Debug endpoint — sends a test email via Brevo to verify config."""
+    success = send_email(
+        to,
+        "✅ Brevo Test from FlowBuilder",
+        text_body="If you received this, Brevo email is working correctly on your backend!"
+    )
+    if success:
+        return {"ok": True, "from": SENDER_EMAIL, "to": to}
+    return {"ok": False, "error": "Failed to send — check BREVO_API_KEY and SENDER_EMAIL in .env"}
 
 @app.post("/process")
 def process(request:ProcessRequest):
@@ -501,7 +465,6 @@ def process(request:ProcessRequest):
       graph = graph.compile()
 
       result = graph.invoke(intial_state)
-      print("result",result)
       return result
 
 
